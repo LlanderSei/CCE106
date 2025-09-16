@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "817311555236",
+    "project_id": "villacino-task6and7-notes",
+    "storage_bucket": "villacino-task6and7-notes.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:817311555236:android:647512ff1312b4a3d11031",
+        "android_client_info": {
+          "package_name": "com.example.villacino_task6and7"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCiyGkp8y8U0cp3TIgLkrdOYZ8lgu-wKWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

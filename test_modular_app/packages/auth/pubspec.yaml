@@ -1,0 +1,4 @@
+name: auth
+
+environment:
+  sdk: ^3.9.0
