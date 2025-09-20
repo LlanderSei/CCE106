@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:villacino_task6and7/controllers/AuthController.dart';
 import 'package:villacino_task6and7/controllers/NoteController.dart';
-import 'package:intl/intl.dart'; // For date formatting
+import 'package:intl/intl.dart';
+import 'package:villacino_task6and7/views/googlesignin.dart'; // For date formatting
 
 class Notes extends StatefulWidget {
   const Notes({super.key, required this.noteController});
@@ -14,6 +16,18 @@ class Notes extends StatefulWidget {
 class _NotesState extends State<Notes> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  Future<void> _signOut() async {
+    await AuthController().signOut();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GoogleSignIn(authController: AuthController()),
+      ),
+      (route) => false,
+    );
+  }
 
   void _showNoteDialog({String? id, String? title, String? desc}) {
     final titleController = TextEditingController(text: title ?? "");
@@ -107,11 +121,15 @@ class _NotesState extends State<Notes> {
       appBar: AppBar(
         title: const Text('Notes App'),
         backgroundColor: const Color.fromARGB(255, 250, 196, 255),
+        actions: [IconButton(onPressed: _signOut, icon: Icon(Icons.logout))],
         // START MODIFIED SECTION
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60.0),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -183,8 +201,9 @@ class _NotesState extends State<Notes> {
 
               final timestampAdded = note['TimestampAdded'] as Timestamp?;
               final addedDate = timestampAdded != null
-                  ? DateFormat('MMM dd, yyyy h:mm a')
-                      .format(timestampAdded.toDate())
+                  ? DateFormat(
+                      'MMM dd, yyyy h:mm a',
+                    ).format(timestampAdded.toDate())
                   : 'Unknown';
 
               // Handle TimestampUpdated (may not exist)
@@ -192,13 +211,14 @@ class _NotesState extends State<Notes> {
               try {
                 final timestampUpdated = note['TimestampUpdated'] as Timestamp?;
                 if (timestampUpdated != null) {
-                  updatedDate = DateFormat('MMM dd, yyyy h:mm a')
-                      .format(timestampUpdated.toDate());
+                  updatedDate = DateFormat(
+                    'MMM dd, yyyy h:mm a',
+                  ).format(timestampUpdated.toDate());
                 }
               } catch (e) {
                 if (e.toString().contains(
-                      'does not exist within the DocumentSnapshotPlatform',
-                    )) {
+                  'does not exist within the DocumentSnapshotPlatform',
+                )) {
                   updatedDate = 'Not updated';
                 } else {
                   updatedDate = 'Error retrieving update time';

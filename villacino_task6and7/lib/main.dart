@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:villacino_task6and7/controllers/NoteController.dart';
-import 'package:villacino_task6and7/views/notes.dart';
+import 'package:villacino_task6and7/controllers/AuthController.dart';
+import 'package:villacino_task6and7/views/googlesignin.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +21,7 @@ class MainApp extends StatelessWidget {
           seedColor: const Color.fromARGB(255, 230, 157, 189),
         ),
       ),
-      home: Notes(noteController: NoteController()),
+      home: GoogleSignIn(authController: AuthController()),
     );
   }
 }

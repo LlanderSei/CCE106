@@ -12,7 +12,12 @@
           "package_name": "com.example.villacino_task6and7"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "817311555236-4n3j5jfbq9bvic2su7q78grl4mo2a9f4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCiyGkp8y8U0cp3TIgLkrdOYZ8lgu-wKWg"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "817311555236-4n3j5jfbq9bvic2su7q78grl4mo2a9f4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "817311555236-np9bjpjki6d8splsaee64ruqo6q4b4l4.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.villacinoTask6and7"
+              }
+            }
+          ]
         }
       }
     }
