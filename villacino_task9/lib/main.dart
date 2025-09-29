@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:villacino_task9/views/pokemonlist.dart';
+import 'package:villacino_task9/views/pokemonlistscreen.dart';
 
 void main() {
   runApp(const MainApp());
@@ -17,7 +17,7 @@ class MainApp extends StatelessWidget {
           seedColor: const Color.fromARGB(255, 245, 255, 110),
         ),
       ),
-      home: PokemonList(),
+      home: PokemonListScreen(),
     );
   }
 }

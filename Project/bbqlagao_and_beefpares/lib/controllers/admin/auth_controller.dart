@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 // Start modification: Added role check for admin after login
-final authControllerProvider = StateNotifierProvider<AuthController, User?>((ref) {
+final authControllerProvider = StateNotifierProvider<AuthController, User?>((
+  ref,
+) {
   return AuthController(FirebaseAuth.instance, FirebaseFirestore.instance);
 });
 
@@ -20,10 +22,22 @@ class AuthController extends StateNotifier<User?> {
 
   // Login method for admin
   Future<void> login(String email, String password) async {
-    final credential = await _auth.signInWithEmailAndPassword(email: email, password: password);
+    UserCredential? credential;
+    if (email.isEmpty || password.isEmpty) {
+      throw 'Email and Password fields shouldn\'t be empty!';
+    }
+
+    try {
+      credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } catch (e) {
+      throw '$e';
+    }
+
     final uid = credential.user!.uid;
     final userDoc = await _firestore.collection('users').doc(uid).get();
-    print(userDoc);
     if (!userDoc.exists || userDoc.data()!['role'] != 'admin') {
       await _auth.signOut();
       throw Exception('User is not an admin');

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "491623429637",
+    "project_id": "todolist-fba29",
+    "storage_bucket": "todolist-fba29.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:491623429637:android:8c33ec4e8ec41ef1c04e6c",
+        "android_client_info": {
+          "package_name": "com.example.labexam2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_C6EZdSBg8r17OWDstpgAAfso_pZSeWI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
