@@ -1,38 +1,57 @@
-import 'package:bbqlagao_and_beefpares/views/admin/admin_home_screen.dart';
-import 'package:bbqlagao_and_beefpares/views/auth/auth_screen.dart';
+// main.dart
+import 'package:bbqlagao_and_beefpares/pages/manager/staff_home_page.dart';
+import 'package:bbqlagao_and_beefpares/pages/cashier/cashier_home_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_core/firebase_core.dart'; // Import Firebase core
+import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:bbqlagao_and_beefpares/controllers/manager/users_controller.dart';
+import 'package:bbqlagao_and_beefpares/models/user.dart';
+import 'globals.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _registerFirstAdmin();
   runApp(
     ProviderScope(
       child: MaterialApp(
-        initialRoute: '/auth',
+        navigatorKey: navigatorKey,
+        initialRoute: '/staff',
         routes: {
-          '/auth': (context) => AuthScreen(),
-          '/admin': (context) => AdminHomeScreen(),
+          // '/auth': (context) => AuthScreen(),
+          '/staff': (context) => StaffHomePage(),
+          '/cashier': (context) => CashierHomePage(),
         },
       ),
     ),
   );
 }
 
+Future<void> _registerFirstAdmin() async {
+  final usersController = UsersController();
+  final adminEmail = 'admin@admin.com';
+  final query = await FirebaseFirestore.instance
+      .collection('users')
+      .where('email', isEqualTo: adminEmail)
+      .get();
+  if (query.docs.isEmpty) {
+    final adminUser = User(name: 'Admin', email: adminEmail, role: 'Admin');
+    await usersController.addUser(adminUser, 'password');
+  }
+}
+
 class MainApp extends StatelessWidget {
-  const MainApp({super.key, required AdminHomeScreen home});
+  const MainApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Admin Home Screen',
+      title: 'Manager Home Screen',
       theme: ThemeData.from(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color.fromARGB(255, 255, 161, 161),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent),
       ),
-      home: AdminHomeScreen(),
     );
   }
 }

@@ -1,38 +1,37 @@
-// lib/models/user.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class User {
-  final String uid;
-  final String role; // 'admin' or 'customer'
-  final Timestamp timeAdded;
-  final String? fullName;
+  final String? id;
+  final String name;
   final String email;
+  final String role;
+  final String? provider;
 
   User({
-    required this.uid,
-    required this.role,
-    required this.timeAdded,
-    this.fullName,
+    this.id,
+    required this.name,
     required this.email,
+    required this.role,
+    this.provider,
   });
 
-  factory User.fromMap(Map<String, dynamic> map) {
+  factory User.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
     return User(
-      uid: map['uid'],
-      role: map['role'],
-      timeAdded: map['timeAdded'],
-      fullName: map['fullName'],
-      email: map['email'],
+      id: doc.id,
+      name: data['name'] ?? '',
+      email: data['email'] ?? '',
+      role: data['role'] ?? '',
+      provider: data['provider'],
     );
   }
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toFirestore() {
     return {
-      'uid': uid,
-      'role': role,
-      'timeAdded': timeAdded,
-      'fullName': fullName,
+      'name': name,
       'email': email,
+      'role': role,
+      if (provider != null) 'provider': provider,
     };
   }
 }
