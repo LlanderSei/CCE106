@@ -1,15 +1,19 @@
+// modify_dish_page.dart
 import 'package:bbqlagao_and_beefpares/controllers/manager/inventory_controller.dart';
 import 'package:bbqlagao_and_beefpares/controllers/manager/menu_controller.dart';
+import 'package:bbqlagao_and_beefpares/controllers/manager/category_controller.dart';
 import 'package:bbqlagao_and_beefpares/styles/color.dart';
 import 'package:bbqlagao_and_beefpares/widgets/gradient_button.dart';
 import 'package:bbqlagao_and_beefpares/widgets/gradient_progress_indicator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart' hide MenuController;
-import 'package:bbqlagao_and_beefpares/widgets/customtoast.dart';
+
 import 'package:bbqlagao_and_beefpares/widgets/gradient_checkbox.dart';
 import 'package:gradient_icon/gradient_icon.dart';
 import '../../models/dish.dart';
 import '../../models/item.dart';
+import '../../models/category.dart';
+import '../../widgets/customtoast.dart';
 
 class ModifyDishPage extends StatefulWidget {
   final String? dishId;
@@ -28,9 +32,10 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
   late TextEditingController _priceCtrl;
   late TextEditingController _imageUrlCtrl;
   late bool _isVisible;
-  final MenuController _menuController = MenuController();
+  final MenuController _menuController = MenuController.instance;
   final InventoryController _inventoryController = InventoryController();
   List<Map<String, dynamic>> _selectedIngredients = [];
+  List<Map<String, dynamic>> _selectedCategories = [];
   double _price = 0.0;
   bool _isLoading = false;
 
@@ -51,7 +56,67 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
             .where((ing) => ing['itemId'] != null)
             .map((ing) => {'id': ing['itemId'], 'quantity': ing['quantity']}),
       );
+      _selectedCategories = List<Map<String, dynamic>>.from(
+        widget.dish!.categories
+            .where((cat) => cat['categoryId'] != null)
+            .map(
+              (cat) => {
+                'id': cat['categoryId'],
+                'name': cat['categoryName'] ?? '',
+              },
+            ),
+      );
       _loadIngredientNames();
+    }
+  }
+
+  Future<void> _onSavePressed() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final isAvailable = await _computeAvailability();
+      final dish = Dish(
+        id: widget.dishId,
+        name: _nameCtrl.text,
+        description: _descCtrl.text,
+        price: double.parse(_priceCtrl.text),
+        isVisible: _isVisible,
+        isAvailable: isAvailable,
+        ingredients: _selectedIngredients
+            .map((ing) => {'itemId': ing['id'], 'quantity': ing['quantity']})
+            .toList(),
+        categories: _selectedCategories
+            .map(
+              (cat) => {
+                'categoryId': cat['id'],
+                'categoryName': cat['name'] ?? cat['categoryName'] ?? '',
+              },
+            )
+            .toList(),
+        imageUrl: _imageUrlCtrl.text.isEmpty ? null : _imageUrlCtrl.text,
+      );
+
+      if (widget.dishId != null) {
+        await _menuController.updateDish(widget.dishId!, dish);
+      } else {
+        await _menuController.addDish(dish);
+      }
+
+      if (mounted) {
+        Toast.show(
+          'Dish ${widget.dishId != null ? 'updated' : 'added'} successfully',
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        Toast.show('Error: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -105,12 +170,25 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
       isScrollControlled: true,
       builder: (context) => _IngredientSelectionBottomSheet(
         inventoryController: _inventoryController,
-        selectedIngredientIds: _selectedIngredients
-            .map((ing) => ing['id'] as String)
-            .toSet(),
-        onAdd: (newIngredients) {
+        currentIngredients: _selectedIngredients,
+        onSave: (updatedIngredients) {
           setState(() {
-            _selectedIngredients.addAll(newIngredients);
+            _selectedIngredients = updatedIngredients;
+          });
+        },
+      ),
+    );
+  }
+
+  void _addCategories() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _CategorySelectionBottomSheet(
+        selectedCategories: _selectedCategories,
+        onSave: (selected) {
+          setState(() {
+            _selectedCategories = selected;
           });
         },
       ),
@@ -162,60 +240,6 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
     );
   }
 
-  Widget _buildIngredientsList() {
-    return SizedBox(
-      height: 200,
-      child: SingleChildScrollView(
-        child: ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _selectedIngredients.length,
-          itemBuilder: (context, index) {
-            final ing = _selectedIngredients[index];
-            return Card(
-              color: Colors.orange[50],
-              child: ListTile(
-                title: Text(ing['name'] ?? 'Unknown'),
-                subtitle: Text('Quantity: ${ing['quantity']}'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove),
-                      onPressed: () => _updateIngredientQuantity(
-                        ing['id'],
-                        (ing['quantity'] as int) - 1,
-                      ),
-                    ),
-                    Text('${ing['quantity']}'),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      onPressed: () => _updateIngredientQuantity(
-                        ing['id'],
-                        (ing['quantity'] as int) + 1,
-                      ),
-                    ),
-                    IconButton(
-                      icon: GradientIcon(
-                        icon: Icons.delete,
-                        gradient: LinearGradient(
-                          colors: GradientColorSets.set2,
-                        ),
-                        offset: Offset.zero,
-                      ),
-                      onPressed: () => _removeIngredient(ing['id']),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final title = widget.dishId != null ? 'Edit Dish' : 'New Dish';
@@ -227,32 +251,25 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
         children: [
           SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.all(16.0).copyWith(bottom: 80.0),
+              padding: const EdgeInsets.all(16.0),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Dish Name'),
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: const InputDecoration(),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Dish name is required';
-                        }
-                        return null;
-                      },
+                      decoration: const InputDecoration(labelText: 'Name'),
+                      validator: (value) => value!.isEmpty ? 'Required' : null,
                     ),
-                    const Divider(),
-                    const Text('Description'),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _descCtrl,
-                      decoration: const InputDecoration(),
-                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
                     ),
-                    const Divider(),
-                    const Text('Price'),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         IconButton(
@@ -262,16 +279,16 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
                         Expanded(
                           child: TextFormField(
                             controller: _priceCtrl,
-                            decoration: const InputDecoration(),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Price',
                             ),
-                            validator: (value) {
-                              if (value == null ||
-                                  double.tryParse(value) == null) {
-                                return 'Please enter a valid price';
-                              }
-                              return null;
+                            keyboardType: TextInputType.number,
+                            validator: (value) =>
+                                double.tryParse(value!) == null
+                                ? 'Enter a valid price'
+                                : null,
+                            onChanged: (val) {
+                              _price = double.tryParse(val) ?? 0.0;
                             },
                           ),
                         ),
@@ -281,136 +298,102 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
                         ),
                       ],
                     ),
-                    const Divider(),
-                    Row(
-                      children: [
-                        const Text('Publish Dish'),
-                        const Spacer(),
-                        Switch(
-                          value: _isVisible,
-                          onChanged: (value) =>
-                              setState(() => _isVisible = value),
-                          activeThumbColor: Colors.amber,
-                        ),
-                      ],
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _imageUrlCtrl,
+                      decoration: const InputDecoration(labelText: 'Image URL'),
                     ),
-                    const Divider(),
-                    SizedBox(
-                      width: double.infinity,
-                      child: GradientButton(
-                        onPressed: _addIngredient,
-                        child: Text(
-                          'Add Ingredient',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                    _buildImagePreview(),
+                    const SizedBox(height: 16),
+                    IntrinsicHeight(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            child: GradientButton(
+                              onPressed: _addCategories,
+                              child: const Text(
+                                'Select Categories',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                        ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: GradientButton(
+                              height: double.infinity,
+                              alignment: Alignment.center,
+                              onPressed: _addIngredient,
+                              child: const Text(
+                                'Add Ingredients',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text('Selected Ingredients:'),
-                    _buildIngredientsList(),
-                    const Divider(),
-                    const Text('Image URL'),
-                    TextFormField(
-                      controller: _imageUrlCtrl,
-                      decoration: const InputDecoration(),
+                    Text(
+                      'Categories: ${_selectedCategories.isEmpty ? "None" : _selectedCategories.map((c) => c["name"] ?? c["categoryName"] ?? "Unknown").join(", ")}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    _buildImagePreview(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Ingredients: ${_selectedIngredients.isEmpty ? "None" : _selectedIngredients.map((i) => "${i["name"]} (x${i["quantity"]})").join(", ")}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  !_isLoading
-                      ? OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.orangeAccent),
-                            foregroundColor: Colors.orangeAccent,
-                            backgroundColor: Colors.white54,
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Cancel'),
-                        )
-                      : const SizedBox.shrink(),
-                  const SizedBox(width: 8),
-                  _isLoading
-                      ? const GradientCircularProgressIndicator()
-                      : GradientButton(
-                          colors: GradientColorSets.set3,
-                          onPressed: () async {
-                            if (_isLoading) return;
-                            if (_formKey.currentState!.validate()) {
-                              setState(() => _isLoading = true);
-                              try {
-                                final bool available =
-                                    await _computeAvailability();
-                                final ingredientsForSave = _selectedIngredients
-                                    .where((ing) => ing['id'] != null)
-                                    .map(
-                                      (ing) => {
-                                        'itemId': ing['id'],
-                                        'quantity': ing['quantity'],
-                                      },
-                                    )
-                                    .toList();
-                                final newDish = Dish(
-                                  id: widget.dishId,
-                                  name: _nameCtrl.text,
-                                  description: _descCtrl.text.isEmpty
-                                      ? null
-                                      : _descCtrl.text,
-                                  price: double.parse(_priceCtrl.text),
-                                  isVisible: _isVisible,
-                                  isAvailable: available,
-                                  ingredients: ingredientsForSave,
-                                  imageUrl: _imageUrlCtrl.text.isEmpty
-                                      ? null
-                                      : _imageUrlCtrl.text,
-                                );
-                                if (widget.dishId == null) {
-                                  await _menuController.addDish(newDish);
-                                } else {
-                                  await _menuController.updateDish(
-                                    widget.dishId!,
-                                    newDish,
-                                  );
-                                }
-                                if (context.mounted) {
-                                  Navigator.pop(context);
-                                }
-                              } catch (e) {
-                                Toast.show('Error: ${e.toString()}');
-                              } finally {
-                                if (context.mounted) {
-                                  setState(() => _isLoading = false);
-                                }
-                              }
-                            }
-                          },
-                          child: Text(
-                            buttonText,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                ],
+          if (_isLoading)
+            const Center(child: GradientCircularProgressIndicator()),
+        ],
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GradientCheckbox(
+                  value: _isVisible,
+                  onChanged: (val) => setState(() => _isVisible = val!),
+                ),
+                const Text('Visible to Customers'),
+              ],
+            ),
+            SizedBox(
+              child: GradientButton(
+                onPressed: _isLoading
+                    ? () {}
+                    : () {
+                        _onSavePressed();
+                      },
+                child: Text(
+                  buttonText,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -427,13 +410,13 @@ class _ModifyDishPageState extends State<ModifyDishPage> {
 
 class _IngredientSelectionBottomSheet extends StatefulWidget {
   final InventoryController inventoryController;
-  final Set<String> selectedIngredientIds;
-  final Function(List<Map<String, dynamic>>) onAdd;
+  final List<Map<String, dynamic>> currentIngredients;
+  final Function(List<Map<String, dynamic>>) onSave;
 
   const _IngredientSelectionBottomSheet({
     required this.inventoryController,
-    required this.selectedIngredientIds,
-    required this.onAdd,
+    required this.currentIngredients,
+    required this.onSave,
   });
 
   @override
@@ -444,10 +427,205 @@ class _IngredientSelectionBottomSheet extends StatefulWidget {
 class _IngredientSelectionBottomSheetState
     extends State<_IngredientSelectionBottomSheet> {
   String _searchText = '';
-  final List<Map<String, dynamic>> _selectedIngredients = [];
+  late List<Map<String, dynamic>> _tempIngredients;
 
-  bool _isSelected(Item item) {
-    return _selectedIngredients.any((m) => m['id'] == item.id);
+  @override
+  void initState() {
+    super.initState();
+    _tempIngredients = List.from(widget.currentIngredients);
+  }
+
+  int _getQty(String id) {
+    final ing = _tempIngredients.firstWhere(
+      (m) => m['id'] == id,
+      orElse: () => {'quantity': 0},
+    );
+    return ing['quantity'] ?? 0;
+  }
+
+  void _setQty(String id, String name, int qty) {
+    setState(() {
+      final index = _tempIngredients.indexWhere((m) => m['id'] == id);
+      if (index != -1) {
+        if (qty <= 0) {
+          _tempIngredients.removeAt(index);
+        } else {
+          _tempIngredients[index]['quantity'] = qty;
+        }
+      } else if (qty > 0) {
+        _tempIngredients.add({'id': id, 'name': name, 'quantity': qty});
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.8,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: TextField(
+              onChanged: (val) =>
+                  setState(() => _searchText = val.toLowerCase()),
+              decoration: const InputDecoration(
+                hintText: 'Search ingredients...',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<Item>>(
+              stream: widget.inventoryController.getItems,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: GradientCircularProgressIndicator(),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No ingredients found'));
+                }
+
+                final items = snapshot.data!
+                    .where(
+                      (item) => item.name.toLowerCase().contains(_searchText),
+                    )
+                    .toList();
+
+                return ListView.builder(
+                  controller: scrollController,
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    final qty = _getQty(item.id!);
+                    final isSelected = qty > 0;
+
+                    return ListTile(
+                      leading: Checkbox(
+                        value: isSelected,
+                        onChanged: (checked) {
+                          if (checked!) {
+                            _setQty(item.id!, item.name, 1);
+                          } else {
+                            _setQty(item.id!, item.name, 0);
+                          }
+                        },
+                      ),
+                      title: Text(item.name),
+                      subtitle: Text(
+                        'Stock: ${item.quantity}${isSelected ? ' | Selected: $qty' : ''}',
+                      ),
+                      trailing: isSelected
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove),
+                                  onPressed: () =>
+                                      _setQty(item.id!, item.name, qty - 1),
+                                ),
+                                Text('$qty'),
+                                IconButton(
+                                  icon: const Icon(Icons.add),
+                                  onPressed: () =>
+                                      _setQty(item.id!, item.name, qty + 1),
+                                ),
+                              ],
+                            )
+                          : null,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.orangeAccent),
+                    foregroundColor: Colors.orangeAccent,
+                  ),
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 16),
+                GradientButton(
+                  onPressed: () {
+                    widget.onSave(_tempIngredients);
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategorySelectionBottomSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> selectedCategories;
+  final Function(List<Map<String, dynamic>>) onSave;
+
+  const _CategorySelectionBottomSheet({
+    required this.selectedCategories,
+    required this.onSave,
+  });
+
+  @override
+  State<_CategorySelectionBottomSheet> createState() =>
+      _CategorySelectionBottomSheetState();
+}
+
+class _CategorySelectionBottomSheetState
+    extends State<_CategorySelectionBottomSheet> {
+  String _searchText = '';
+  late List<Map<String, dynamic>> _currentSelected;
+  final CategoryController _categoryController = CategoryController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Create a deep copy of selected categories to avoid modifying original list
+    _currentSelected = List.from(
+      widget.selectedCategories.map((cat) => Map<String, dynamic>.from(cat)),
+    );
+  }
+
+  bool _isSelected(String? id) {
+    return _currentSelected.any((cat) => cat['id'] == id);
+  }
+
+  void _toggleCategory(Category category) {
+    setState(() {
+      final index = _currentSelected.indexWhere(
+        (cat) => cat['id'] == category.id,
+      );
+      if (index != -1) {
+        _currentSelected.removeAt(index);
+      } else {
+        _currentSelected.add({'id': category.id, 'name': category.name});
+      }
+    });
   }
 
   @override
@@ -465,67 +643,49 @@ class _IngredientSelectionBottomSheetState
               onChanged: (val) =>
                   setState(() => _searchText = val.toLowerCase()),
               decoration: const InputDecoration(
-                labelText: 'Search Ingredients',
-                border: OutlineInputBorder(),
+                hintText: 'Search categories...',
                 prefixIcon: Icon(Icons.search),
               ),
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<Item>>(
-              stream: widget.inventoryController.getItems,
+            child: StreamBuilder<List<Category>>(
+              stream: _categoryController.getCategories,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: GradientCircularProgressIndicator(),
                   );
                 }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No ingredients available.'));
+
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
                 }
-                final availableIngredients = snapshot.data!
+
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No categories found'));
+                }
+
+                final categories = snapshot.data!
                     .where(
-                      (item) =>
-                          !widget.selectedIngredientIds.contains(item.id) &&
-                          item.name.toLowerCase().contains(_searchText),
+                      (cat) => cat.name.toLowerCase().contains(_searchText),
                     )
                     .toList();
+
                 return ListView.builder(
                   controller: scrollController,
-                  itemCount: availableIngredients.length,
+                  itemCount: categories.length,
                   itemBuilder: (context, index) {
-                    final item = availableIngredients[index];
-                    final isSelected = _isSelected(item);
+                    final category = categories[index];
                     return ListTile(
-                      leading: GradientCheckbox(
-                        value: isSelected,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val!) {
-                              _selectedIngredients.add({
-                                'id': item.id,
-                                'name': item.name,
-                              });
-                            } else {
-                              _selectedIngredients.removeWhere(
-                                (m) => m['id'] == item.id,
-                              );
-                            }
-                          });
-                        },
-                      ),
-                      title: Text(item.name),
-                      subtitle: Text('Stock: ${item.quantity}'),
-                      trailing: item.imageUrl != null
-                          ? Image.network(
-                              item.imageUrl!,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.image_not_supported),
+                      title: Text(category.name),
+                      trailing: _isSelected(category.id)
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Color(0xFFD84315),
                             )
-                          : const Icon(Icons.image_not_supported),
+                          : const Icon(Icons.circle_outlined),
+                      onTap: () => _toggleCategory(category),
                     );
                   },
                 );
@@ -538,36 +698,22 @@ class _IngredientSelectionBottomSheetState
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.orange),
+                    side: const BorderSide(color: Colors.orangeAccent),
+                    foregroundColor: Colors.orangeAccent,
                   ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.orange),
-                  ),
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 16),
                 GradientButton(
                   onPressed: () {
-                    final newIngredients = _selectedIngredients
-                        .map(
-                          (m) => {
-                            'id': m['id'],
-                            'name': m['name'],
-                            'quantity': 1,
-                          },
-                        )
-                        .toList();
-                    widget.onAdd(newIngredients);
+                    widget.onSave(_currentSelected);
                     Navigator.pop(context);
                   },
-                  child: Text(
-                    'Add Ingredient',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
               ],
